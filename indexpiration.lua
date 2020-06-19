@@ -103,7 +103,7 @@ function F:start_worker()
 					end
 					for _,t in pairs(collect) do
 						if not expiration.txn then
-							t = box.space:get(expiration._pk(t))
+							t = box.space[space.name]:get(expiration._pk(t))
 							if expiration.check( t ) > 0 then
 								t = nil
 							end
