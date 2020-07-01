@@ -109,10 +109,13 @@ function F:start_worker()
 							end
 						end
 						if t then
+							local skip = false
 							if expiration.on_delete then
-								expiration.on_delete(t)
+								skip = false == expiration.on_delete(t)
 							end
-							space:delete( expiration._pk(t) )
+							if not skip then
+								space:delete( expiration._pk(t) )
+							end
 						end
 					end
 					if expiration.txn then
