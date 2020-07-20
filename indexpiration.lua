@@ -93,7 +93,7 @@ function F:start_worker()
 		if package.reload then fname = fname .. '.' .. package.reload.count end
 		fiber.name(string.sub(fname,1,32))
 		repeat fiber.sleep(0.001) until space.expiration
-		log.info("Worker started: %s",space.name)
+		log.info("Worker started")
 		local curwait
 		local collect = {}
 		while box.space[space.name] and space.expiration == expiration and expiration.running do
@@ -163,9 +163,9 @@ function F:start_worker()
 			expiration._wait:get(curwait)
 		end
 		if expiration.running then
-			log.info("Worker finished: %s",space.name)
+			log.info("Worker finished")
 		else
-			log.info("Worker stopped: %s",space.name)
+			log.info("Worker stopped")
 		end
 	end,box.space[self.space],self,self.expire_index)
 end
