@@ -67,6 +67,7 @@ end
 
 function F:start_watchdog()
 	self._watcher = fiber.create(function(expiration)
+		fiber.name('indexpiration-watchdog')
 		while not expiration._terminate do
 			if box.info.ro then
 				expiration:stop_worker()
