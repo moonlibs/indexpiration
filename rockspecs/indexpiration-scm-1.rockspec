@@ -1,7 +1,7 @@
 package = 'indexpiration'
 version = 'scm-1'
 source  = {
-    url    = 'git://github.com/moonlibs/indexpiration.git',
+    url    = 'git+https://github.com/moonlibs/indexpiration.git',
     branch = 'master',
 }
 description = {
