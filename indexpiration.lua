@@ -60,22 +60,44 @@ end
 
 local F = {}
 
-function F:stop()
-	self.stopped = true
+function F:terminate()
+	self._terminate = true
+	self:stop_worker()
+end
+
+function F:start_watchdog()
+	self._watcher = fiber.create(function(expiration)
+		fiber.name('indexpiration-watchdog')
+		while not expiration._terminate do
+			if box.info.ro then
+				expiration:stop_worker()
+				pcall(box.ctl.wait_rw)
+			else
+				expiration:start_worker()
+				pcall(box.ctl.wait_ro)
+			end
+		end
+	end, self)
+end
+
+function F:stop_worker()
+	if not self.running then return end
+	self.running = false
 	self._wait:put(true,0)
 end
 
 function F:start_worker()
+	if self._terminate or self.running then return end
+	self.running = true
 	self._worker = fiber.create(function(space,expiration,expire_index)
 		local fname = space.name .. '.xpr'
 		if package.reload then fname = fname .. '.' .. package.reload.count end
 		fiber.name(string.sub(fname,1,32))
 		repeat fiber.sleep(0.001) until space.expiration
-		local chan = expiration._wait
 		log.info("Worker started")
 		local curwait
 		local collect = {}
-		while box.space[space.name] and space.expiration == expiration and not expiration.stopped do
+		while box.space[space.name] and space.expiration == expiration and expiration.running do
 			local r,e = pcall(function()
 				-- print("runat loop 2 ",box.time64())
 				local remaining
@@ -103,6 +125,10 @@ function F:start_worker()
 					end
 					for _,t in pairs(collect) do
 						if not expiration.txn then
+							if not expiration.running then
+								remaining = 0
+								break
+							end
 							t = box.space[space.name]:get(expiration._pk(t))
 							if expiration.check( t ) > 0 then
 								t = nil
@@ -139,12 +165,12 @@ function F:start_worker()
 			end
 			-- log.info("Wait %0.2fs",curwait)
 			if curwait == 0 then fiber.sleep(0) end
-			chan:get(curwait)
+			expiration._wait:get(curwait)
 		end
-		if expiration.stopped then
-			log.info("Expiration worker was stopped")
-		else
+		if expiration.running then
 			log.info("Worker finished")
+		else
+			log.info("Worker stopped")
 		end
 	end,box.space[self.space],self,self.expire_index)
 end
@@ -257,8 +283,9 @@ function M.upgrade(space,opts,depth)
 	self.space = space.id
 	self.expire_index = expire_index
 
-	self:start_worker()
-	
+	self._terminate = false
+	self.running = false
+	self:start_watchdog()
 
 	if self.precise then
 		self._on_repl = space:on_replace(function(old, new)
